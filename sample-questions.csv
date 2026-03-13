@@ -1,0 +1,5 @@
+Question,Type,OptionA,OptionB,OptionC,OptionD,CorrectAnswer,Explanation
+What is phishing?,mc,A scam email impersonating a trusted source,A type of network firewall,An encrypted VPN tunnel,A software patch process,A,Phishing tricks users into revealing credentials by impersonating trusted entities.
+Firewalls block all incoming traffic by default.,tf,True,False,,,A,Firewalls filter traffic based on configured rules — they do not block everything by default.
+"Which of the following are social engineering attacks? (Select all that apply)",ms,Phishing,SQL injection,Pretexting,Tailgating,ACD,"Phishing, pretexting, and tailgating are social engineering. SQL injection is a technical attack."
+What does MFA stand for?,mc,Multi-Factor Authentication,Managed Firewall Access,Multi-File Archive,Mandatory Firmware Alert,A,MFA requires two or more verification steps — something you know plus something you have or are.

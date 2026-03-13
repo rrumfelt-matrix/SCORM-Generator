@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCORM Builder</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- ====== STYLES ====== -->
+<!-- All CSS: layout, theme variables, responsive breakpoints, print styles -->
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #1a3c5e;
+  --bg: #f0f4f8;
+  --text: #222222;
+  --accent: #2e7d32;
+  --correct: #2e7d32;
+  --incorrect: #c62828;
+  --sidebar-width: 380px;
+  --header-h: 56px;
+  --radius: 6px;
+  --shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+
+body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; color: var(--text); background: var(--bg); min-height: 100vh; }
+
+/* Header */
+.app-header { background: var(--primary); color: #fff; height: var(--header-h); display: flex; align-items: center; padding: 0 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+.app-header .title { font-size: 1.2rem; font-weight: 700; flex: 1; }
+.help-btn { color: #fff; text-decoration: none; font-size: .85rem; border: 1px solid rgba(255,255,255,.4); padding: 4px 10px; border-radius: var(--radius); }
+.help-btn:hover { background: rgba(255,255,255,.15); }
+
+/* Error banner */
+.error-banner { background: #c62828; color: #fff; padding: 10px 20px; font-size: .9rem; display: flex; align-items: center; gap: 10px; }
+.error-banner.hidden { display: none; }
+
+/* Layout */
+.app-layout { display: flex; min-height: calc(100vh - var(--header-h)); }
+.sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); background: #fff; border-right: 1px solid #dde2e8; overflow-y: auto; display: flex; flex-direction: column; }
+.main-panel { flex: 1; padding: 24px; overflow-y: auto; }
+
+/* Accordion */
+.accordion { border-bottom: 1px solid #dde2e8; }
+.accordion-header { width: 100%; background: none; border: none; padding: 14px 16px; text-align: left; font-size: .95rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: var(--text); }
+.accordion-header:hover { background: #f5f7fa; }
+.accordion-header .chevron { transition: transform .2s; font-size: .7rem; }
+.accordion-header.open .chevron { transform: rotate(180deg); }
+.accordion-body { padding: 0 16px 16px; display: none; }
+.accordion-body.open { display: block; }
+
+/* Forms */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-weight: 500; margin-bottom: 4px; font-size: .85rem; }
+.form-group input[type=text], .form-group input[type=number], .form-group select, .form-group textarea { width: 100%; padding: 7px 10px; border: 1px solid #ccc; border-radius: var(--radius); font-size: .9rem; color: var(--text); background: #fff; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,60,94,.15); }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.toggle-row label { font-weight: 500; font-size: .85rem; }
+.toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: #ccc; border-radius: 22px; cursor: pointer; transition: .2s; }
+.toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.toggle input:checked + .toggle-slider { background: var(--primary); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+.sub-section { background: #f9fafb; border: 1px solid #e2e6ea; border-radius: var(--radius); padding: 12px; margin-top: 8px; }
+.sub-section.hidden { display: none; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: var(--radius); cursor: pointer; font-size: .9rem; font-weight: 500; transition: opacity .15s, filter .15s; }
+.btn:hover:not(:disabled) { filter: brightness(.92); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+.btn-full { width: 100%; justify-content: center; }
+.btn-sm { padding: 4px 10px; font-size: .8rem; }
+
+/* Drop zone */
+.drop-zone { border: 2px dashed #aab4be; border-radius: var(--radius); padding: 24px 16px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; margin-bottom: 12px; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: var(--primary); background: #eef2f7; }
+.drop-zone p { color: #666; font-size: .85rem; margin-top: 6px; }
+.drop-zone input[type=file] { display: none; }
+.upload-icon { font-size: 2rem; color: #aab4be; }
+
+/* Validation messages */
+.msg { padding: 8px 12px; border-radius: var(--radius); font-size: .85rem; margin-bottom: 8px; }
+.msg-error { background: #fdecea; color: #c62828; border-left: 3px solid #c62828; }
+.msg-warning { background: #fff8e1; color: #e65100; border-left: 3px solid #f9a825; }
+.msg-success { background: #e8f5e9; color: #1b5e20; border-left: 3px solid #2e7d32; }
+.msg.hidden { display: none; }
+
+/* Color pickers */
+.color-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.color-row label { flex: 1; font-size: .85rem; }
+.color-row input[type=color] { width: 36px; height: 28px; padding: 1px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+.color-row .hex-val { font-family: monospace; font-size: .8rem; color: #555; width: 70px; }
+
+/* Theme presets */
+.preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.preset-btn { padding: 8px; border: 2px solid transparent; border-radius: var(--radius); cursor: pointer; font-size: .8rem; font-weight: 600; transition: border-color .15s; }
+.preset-btn:hover, .preset-btn.active { border-color: #333; }
+
+/* Live preview */
+.preview-card { border: 1px solid #dde2e8; border-radius: var(--radius); overflow: hidden; margin-top: 14px; font-size: .8rem; }
+.preview-card-header { padding: 8px 12px; display: flex; align-items: center; gap: 8px; }
+.preview-card-header img { max-width: 80px; max-height: 32px; object-fit: contain; }
+.preview-card-header .preview-title { font-weight: 700; font-size: .9rem; color: #fff; }
+.preview-card-body { padding: 10px 12px; background: #fff; }
+.preview-question { font-weight: 600; margin-bottom: 6px; }
+.preview-option { padding: 4px 8px; border-radius: 4px; margin-bottom: 3px; background: #f5f5f5; }
+.preview-swatches { display: flex; gap: 8px; margin-top: 8px; }
+.preview-swatch { padding: 3px 8px; border-radius: 4px; font-size: .75rem; color: #fff; font-weight: 600; }
+
+/* Logo upload */
+.logo-preview { max-width: 200px; max-height: 100px; object-fit: contain; display: block; margin-top: 8px; }
+.logo-upload-err { font-size: .8rem; color: #c62828; margin-top: 4px; }
+
+/* Generate section */
+.generate-helper { font-size: .8rem; color: #666; margin-top: 8px; font-style: italic; }
+
+/* Empty state */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; color: #999; text-align: center; gap: 10px; }
+.empty-state .empty-icon { font-size: 3rem; }
+.empty-state h3 { font-size: 1.1rem; font-weight: 600; color: #555; }
+.empty-state p { font-size: .9rem; }
+
+/* Preview table */
+#preview-panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+.randomize-note { background: #fff8e1; color: #e65100; padding: 6px 12px; border-radius: var(--radius); font-size: .8rem; margin-bottom: 8px; display: none; }
+.randomize-note.visible { display: block; }
+.table-wrapper { max-height: 500px; overflow-y: auto; border: 1px solid #dde2e8; border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+thead { position: sticky; top: 0; background: #f5f7fa; z-index: 1; }
+th, td { padding: 7px 8px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+th { font-weight: 600; font-size: .78rem; color: #555; }
+tr.row-error { background: #fdecea; }
+tr.row-warning { background: #fff8e1; }
+tr.drag-over-top { border-top: 2px solid var(--primary); }
+tr.drag-over-bottom { border-bottom: 2px solid var(--primary); }
+.drag-handle { cursor: grab; color: #aaa; user-select: none; font-size: 1.1rem; }
+.drag-handle:active { cursor: grabbing; }
+td.drag-handle-cell { text-align: center; }
+.type-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: .75rem; font-weight: 700; color: #fff; }
+.badge-mc { background: #1565c0; }
+.badge-tf { background: #6a1b9a; }
+.badge-ms { background: #00695c; }
+.correct-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: .75rem; font-weight: 700; background: #2e7d32; color: #fff; }
+.status-icon { font-size: 1rem; }
+.mobile-arrows { display: none; gap: 2px; }
+.mobile-arrows button { background: none; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; padding: 1px 4px; font-size: .7rem; }
+.table-summary { margin-top: 8px; font-size: .82rem; color: #555; }
+.table-summary .s-valid { color: #2e7d32; font-weight: 600; }
+.table-summary .s-warn { color: #e65100; font-weight: 600; }
+.table-summary .s-error { color: #c62828; font-weight: 600; }
+
+/* Toasts */
+#toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; max-width: 340px; }
+.toast { background: #fff; border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,.2); padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; border-left: 4px solid; animation: toast-in .2s ease; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+.toast-success { border-color: #2e7d32; }
+.toast-warning { border-color: #f9a825; }
+.toast-error { border-color: #c62828; }
+.toast-body { flex: 1; font-size: .85rem; }
+.toast-close { background: none; border: none; cursor: pointer; font-size: 1rem; color: #999; padding: 0; line-height: 1; }
+.toast-close:hover { color: #333; }
+
+/* Template download hint */
+.template-hint { font-size: .8rem; color: #2e7d32; margin-top: 4px; display: none; }
+.template-hint.visible { display: block; }
+
+@media (max-width: 768px) {
+  .app-layout { flex-direction: column; }
+  .sidebar { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid #dde2e8; }
+  .mobile-arrows { display: flex; }
+  .drag-handle { display: none; }
+  th:first-child, td:first-child { display: none; }
+}
+@media (min-width: 769px) { .mobile-arrows { display: none; } }
+
+/* Print styles */
+@media print {
+  body > *:not(#print-certificate-target) { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ====== HTML: LAYOUT ====== -->
+<!-- Header, sidebar, main panel, empty state, preview table -->
+
+<header class="app-header">
+  <span class="title">SCORM Builder</span>
+  <a href="https://github.com/rrumfelt-matrix/SCORM-Generator" target="_blank" rel="noopener" class="help-btn">[?] Help</a>
+</header>
+
+<div id="jszip-banner" class="error-banner hidden">
+  ⚠ Could not load required library. Check your internet connection and refresh the page.
+</div>
+
+<div class="app-layout">
+  <!-- Left sidebar -->
+  <aside class="sidebar">
+
+    <!-- Section 1: CSV Upload -->
+    <div class="accordion">
+      <button class="accordion-header open" data-target="acc-csv">
+        1. Upload CSV <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-body open" id="acc-csv">
+        <button class="btn btn-outline btn-full" id="btn-template-download" style="margin-bottom:10px">⬇ Download CSV Template</button>
+        <p class="template-hint" id="template-hint">✓ Template downloaded — fill it in and upload it above</p>
+
+        <div class="drop-zone" id="drop-zone">
+          <div class="upload-icon">📄</div>
+          <p><strong>Drag &amp; drop a CSV file here</strong></p>
+          <p>or <button class="btn btn-sm btn-outline" id="btn-browse" type="button">Browse</button></p>
+          <input type="file" id="csv-file-input" accept=".csv">
+        </div>
+
+        <div id="csv-status" class="msg hidden"></div>
+        <div id="csv-warnings" class="msg msg-warning hidden"></div>
+        <div id="csv-errors" class="msg msg-error hidden"></div>
+      </div>
+    </div>
+
+    <!-- Section 2: Course Settings -->
+    <div class="accordion">
+      <button class="accordion-header open" data-target="acc-settings">
+        2. Course Settings <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-body open" id="acc-settings">
+        <div class="form-group">
+          <label for="course-title">Course Title</label>
+          <input type="text" id="course-title" value="Untitled Course">
+        </div>
+        <div class="form-group">
+          <label for="org-name">Organisation Name</label>
+          <input type="text" id="org-name" placeholder="">
+        </div>
+        <div class="form-group">
+          <label for="pass-mark">Pass Mark (%)</label>
+          <input type="number" id="pass-mark" value="80" min="1" max="100">
+        </div>
+        <div class="form-group">
+          <label for="scorm-version">SCORM Version</label>
+          <select id="scorm-version">
+            <option value="1.2">SCORM 1.2</option>
+            <option value="2004">SCORM 2004 4th Edition</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="question-order">Question Order</label>
+          <select id="question-order">
+            <option value="uploaded">As uploaded</option>
+            <option value="random">Randomise</option>
+          </select>
+        </div>
+        <div class="toggle-row">
+          <label for="show-explanations">Show Explanations</label>
+          <label class="toggle"><input type="checkbox" id="show-explanations" checked><span class="toggle-slider"></span></label>
+        </div>
+        <div class="form-group">
+          <label for="display-mode">Display Mode</label>
+          <select id="display-mode">
+            <option value="all">All questions</option>
+            <option value="one">One at a time</option>
+          </select>
+        </div>
+        <div class="toggle-row">
+          <label for="enable-retakes">Enable Retakes</label>
+          <label class="toggle"><input type="checkbox" id="enable-retakes"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sub-section hidden" id="retake-options">
+          <div class="form-group">
+            <label for="max-attempts">Max Attempts</label>
+            <select id="max-attempts">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="0">Unlimited</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="retake-msg">Retake Message</label>
+            <input type="text" id="retake-msg" value="You did not pass. Please try again.">
+          </div>
+          <div class="form-group">
+            <label for="locked-msg">Locked Message</label>
+            <input type="text" id="locked-msg" value="Maximum attempts reached. Please contact your administrator.">
+          </div>
+        </div>
+        <div class="toggle-row">
+          <label for="enable-cert">Enable Certificate</label>
+          <label class="toggle"><input type="checkbox" id="enable-cert"><span class="toggle-slider"></span></label>
+        </div>
+        <div class="sub-section hidden" id="cert-options">
+          <div class="form-group">
+            <label for="cert-title">Certificate Title</label>
+            <input type="text" id="cert-title" value="Certificate of Completion">
+          </div>
+          <div class="form-group">
+            <label for="signatory-name">Signatory Name</label>
+            <input type="text" id="signatory-name" placeholder="">
+          </div>
+          <div class="form-group">
+            <label for="signatory-title">Signatory Title</label>
+            <input type="text" id="signatory-title" placeholder="">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Theme Builder -->
+    <div class="accordion">
+      <button class="accordion-header open" data-target="acc-theme">
+        3. Theme Builder <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-body open" id="acc-theme">
+        <div class="preset-grid">
+          <button class="preset-btn active" data-preset="corporate" style="background:#1a3c5e;color:#fff">Corporate</button>
+          <button class="preset-btn" data-preset="modern" style="background:#6200ea;color:#fff">Modern</button>
+          <button class="preset-btn" data-preset="dark" style="background:#1e1e1e;color:#e0e0e0">Dark</button>
+          <button class="preset-btn" data-preset="hc" style="background:#000;color:#fff;border:2px solid #ffdd00">High Contrast</button>
+        </div>
+        <div class="color-row">
+          <label>Primary colour</label>
+          <input type="color" id="color-primary" value="#1a3c5e">
+          <span class="hex-val" id="hex-primary">#1a3c5e</span>
+        </div>
+        <div class="color-row">
+          <label>Page background</label>
+          <input type="color" id="color-bg" value="#f0f4f8">
+          <span class="hex-val" id="hex-bg">#f0f4f8</span>
+        </div>
+        <div class="color-row">
+          <label>Body text</label>
+          <input type="color" id="color-text" value="#222222">
+          <span class="hex-val" id="hex-text">#222222</span>
+        </div>
+        <div class="color-row">
+          <label>Correct highlight</label>
+          <input type="color" id="color-correct" value="#2e7d32">
+          <span class="hex-val" id="hex-correct">#2e7d32</span>
+        </div>
+        <div class="color-row">
+          <label>Incorrect highlight</label>
+          <input type="color" id="color-incorrect" value="#c62828">
+          <span class="hex-val" id="hex-incorrect">#c62828</span>
+        </div>
+
+        <div class="form-group" style="margin-top:10px">
+          <label>Logo (PNG / JPG / SVG, max 500 KB, 400×200 px)</label>
+          <input type="file" id="logo-input" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
+          <div id="logo-error" class="logo-upload-err hidden"></div>
+          <img id="logo-preview" class="logo-preview hidden" alt="Logo preview">
+          <button class="btn btn-sm btn-outline" id="btn-clear-logo" style="margin-top:6px;display:none">Remove logo</button>
+        </div>
+
+        <!-- Live preview -->
+        <div class="preview-card" id="live-preview">
+          <div class="preview-card-header" id="preview-header" style="background:#1a3c5e">
+            <span class="preview-title" id="preview-title-text">Untitled Course</span>
+          </div>
+          <div class="preview-card-body" id="preview-body" style="background:#f0f4f8;color:#222">
+            <div class="preview-question">Sample question text</div>
+            <div class="preview-option">Option A</div>
+            <div class="preview-option">Option B</div>
+            <div class="preview-swatches">
+              <span class="preview-swatch" id="swatch-correct" style="background:#2e7d32">✓ Correct</span>
+              <span class="preview-swatch" id="swatch-incorrect" style="background:#c62828">✗ Incorrect</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Generate -->
+    <div class="accordion">
+      <button class="accordion-header open" data-target="acc-generate">
+        4. Generate <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-body open" id="acc-generate">
+        <button class="btn btn-accent btn-full" id="btn-generate" disabled>🚀 Generate SCORM Package</button>
+        <p class="generate-helper">Upload the .zip directly to Paycom Learning or any SCORM 1.2 / SCORM 2004 compliant LMS</p>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- Right panel -->
+  <main class="main-panel">
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>No questions loaded</h3>
+      <p>Upload a CSV file to preview your questions here</p>
+    </div>
+
+    <div id="preview-panel" style="display:none">
+      <h2>Question Preview</h2>
+      <p class="randomize-note" id="randomize-note">Question order is set to randomise — drag to reorder is disabled</p>
+      <div class="table-wrapper">
+        <table id="preview-table">
+          <thead>
+            <tr>
+              <th style="width:32px">⠿</th>
+              <th style="width:28px">#</th>
+              <th style="width:40px">Type</th>
+              <th style="width:220px">Question</th>
+              <th>A</th><th>B</th><th>C</th><th>D</th>
+              <th>Correct</th>
+              <th>Explanation</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+      <div class="table-summary" id="table-summary"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ====== HTML: MODALS ====== -->
+<!-- Help link target, any overlay UI -->
+
+<script>
+'use strict';
+
+// ====== JS: TOAST ======
+var toastContainer = document.getElementById('toast-container');
+
+function showToast(message, type) {
+  // type: 'success' | 'warning' | 'error'
+  var toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+
+  var body = document.createElement('div');
+  body.className = 'toast-body';
+  body.textContent = message;
+
+  var close = document.createElement('button');
+  close.className = 'toast-close';
+  close.innerHTML = '&times;';
+  close.setAttribute('aria-label', 'Close');
+  close.onclick = function() { removeToast(toast); };
+
+  toast.appendChild(body);
+  toast.appendChild(close);
+  toastContainer.appendChild(toast);
+
+  if (type === 'success') {
+    setTimeout(function() { removeToast(toast); }, 5000);
+  }
+  return toast;
+}
+
+function removeToast(toast) {
+  if (toast && toast.parentNode) {
+    toast.parentNode.removeChild(toast);
+  }
+}
+
+// ====== JS: SLUG ======
+function slugify(title) {
+  var s = (title || '').toLowerCase();
+  s = s.replace(/&/g, '');
+  s = s.replace(/[^a-z0-9 -]/g, '');
+  s = s.replace(/[\s-]+/g, '-');
+  s = s.replace(/^-+|-+$/g, '');
+  if (s.length > 50) {
+    s = s.substring(0, 50);
+    var lastHyphen = s.lastIndexOf('-');
+    if (lastHyphen > 0) s = s.substring(0, lastHyphen);
+    s = s.replace(/^-+|-+$/g, '');
+  }
+  return s || 'untitled-course';
+}
+
+// ====== JS: CSV PARSER ======
+function parseCSV(text) {
+  // Strip BOM
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  // Normalise line endings
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  var lines = text.split('\n');
+  var rows = [];
+
+  for (var i = 0; i < lines.length; i++) {
+    var row = parseCSVRow(lines[i]);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseCSVRow(line) {
+  var fields = [];
+  var field = '';
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        fields.push(field);
+        field = '';
+      } else {
+        field += ch;
+      }
+    }
+  }
+  fields.push(field);
+  return fields;
+}
+
+function csvToObjects(text) {
+  var rows = parseCSV(text);
+  if (rows.length === 0) return { error: 'Empty file', questions: [] };
+
+  // Find header row (skip leading blank rows)
+  var headerRowIdx = -1;
+  var headers = [];
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    if (row.every(function(c) { return c.trim() === ''; })) continue;
+    headers = row.map(function(h) { return h.trim().toLowerCase(); });
+    headerRowIdx = i;
+    break;
+  }
+
+  if (headerRowIdx === -1) return { error: 'No header row found', questions: [] };
+
+  // Required column check
+  var requiredCols = ['question', 'optiona', 'optionb', 'optionc', 'optiond', 'correctanswer'];
+  var missingCols = [];
+  for (var rc = 0; rc < requiredCols.length; rc++) {
+    if (headers.indexOf(requiredCols[rc]) === -1) missingCols.push(requiredCols[rc]);
+  }
+  if (missingCols.length > 0) {
+    return { error: 'Missing required columns: ' + missingCols.join(', '), questions: [] };
+  }
+
+  var colIdx = {};
+  for (var ci = 0; ci < headers.length; ci++) {
+    colIdx[headers[ci]] = ci;
+  }
+
+  var questions = [];
+  for (var ri = headerRowIdx + 1; ri < rows.length; ri++) {
+    var r = rows[ri];
+    // Skip blank rows
+    if (r.every(function(c) { return c.trim() === ''; })) continue;
+    // Skip comment rows
+    var questionText = (r[colIdx['question']] || '').trim();
+    if (questionText.startsWith('#')) continue;
+
+    var q = {
+      rowNum: ri + 1,
+      question: questionText,
+      type: ((colIdx['type'] !== undefined ? r[colIdx['type']] : '') || 'mc').trim().toLowerCase() || 'mc',
+      optionA: (r[colIdx['optiona']] || '').trim(),
+      optionB: (r[colIdx['optionb']] || '').trim(),
+      optionC: (r[colIdx['optionc']] || '').trim(),
+      optionD: (r[colIdx['optiond']] || '').trim(),
+      correctAnswer: (r[colIdx['correctanswer']] || '').trim().toUpperCase(),
+      explanation: (colIdx['explanation'] !== undefined ? r[colIdx['explanation']] : '') || ''
+    };
+    questions.push(q);
+  }
+
+  return { error: null, questions: questions };
+}
+
+// ====== JS: VALIDATION ======
+function validateQuestions(questions) {
+  var errors = [];
+  var warnings = [];
+  var seenQuestions = {};
+
+  if (questions.length === 0) {
+    errors.push({ row: null, msg: 'No questions found in CSV' });
+    return { errors: errors, warnings: warnings, validated: questions };
+  }
+
+  var validTypes = ['mc', 'tf', 'ms'];
+
+  questions.forEach(function(q, idx) {
+    q.rowErrors = [];
+    q.rowWarnings = [];
+
+    // Type validation
+    if (validTypes.indexOf(q.type) === -1) {
+      q.rowErrors.push('Invalid type "' + q.type + '" (must be mc, tf, or ms)');
+      errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': Invalid type "' + q.type + '"' });
+    }
+
+    // Question empty
+    if (!q.question) {
+      q.rowErrors.push('Question text is empty');
+      errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': Question text is empty' });
+    }
+
+    // Type-specific validations
+    if (validTypes.indexOf(q.type) !== -1) {
+      if (q.type === 'mc') {
+        if (!q.optionA) { q.rowErrors.push('OptionA is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionA is empty' }); }
+        if (!q.optionB) { q.rowErrors.push('OptionB is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionB is empty' }); }
+        if (!q.optionC) { q.rowErrors.push('OptionC is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionC is empty' }); }
+        if (!q.optionD) { q.rowErrors.push('OptionD is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionD is empty' }); }
+        if (!/^[ABCD]$/.test(q.correctAnswer)) {
+          q.rowErrors.push('CorrectAnswer must be A, B, C, or D for mc type');
+          errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': CorrectAnswer must be A, B, C, or D for mc' });
+        }
+      } else if (q.type === 'tf') {
+        if (!q.optionA) { q.rowErrors.push('OptionA is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionA is empty' }); }
+        if (!q.optionB) { q.rowErrors.push('OptionB is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionB is empty' }); }
+        if (!/^[AB]$/.test(q.correctAnswer)) {
+          q.rowErrors.push('CorrectAnswer must be A or B for tf type');
+          errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': CorrectAnswer must be A or B for tf' });
+        }
+      } else if (q.type === 'ms') {
+        if (!q.optionA) { q.rowErrors.push('OptionA is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionA is empty' }); }
+        if (!q.optionB) { q.rowErrors.push('OptionB is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionB is empty' }); }
+        if (!q.optionC) { q.rowErrors.push('OptionC is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionC is empty' }); }
+        if (!q.optionD) { q.rowErrors.push('OptionD is empty'); errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': OptionD is empty' }); }
+        var ca = q.correctAnswer;
+        if (!/^[ABCD]{2,4}$/.test(ca)) {
+          q.rowErrors.push('CorrectAnswer for ms must be 2-4 unique letters (A-D)');
+          errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': CorrectAnswer for ms must be 2-4 letters like "ACD"' });
+        } else {
+          var letters = ca.split('');
+          var unique = letters.filter(function(v, i) { return letters.indexOf(v) === i; });
+          if (unique.length !== letters.length) {
+            q.rowErrors.push('CorrectAnswer has duplicate letters');
+            errors.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': CorrectAnswer has duplicate letters' });
+          }
+        }
+      }
+    }
+
+    // Duplicate question warning
+    if (q.question) {
+      if (seenQuestions[q.question]) {
+        q.rowWarnings.push('Duplicate question text');
+        warnings.push({ row: q.rowNum, msg: 'Row ' + q.rowNum + ': Duplicate question text' });
+      }
+      seenQuestions[q.question] = true;
+    }
+
+    q.status = q.rowErrors.length > 0 ? 'error' : (q.rowWarnings.length > 0 ? 'warning' : 'valid');
+  });
+
+  // File-level warnings
+  if (questions.length < 5) {
+    warnings.push({ row: null, msg: 'Fewer than 5 questions — consider adding more for a meaningful assessment' });
+  }
+  if (questions.length > 100) {
+    warnings.push({ row: null, msg: 'More than 100 questions — this may be too long for a single quiz' });
+  }
+
+  return { errors: errors, warnings: warnings, validated: questions };
+}
+
+// ====== JS: SETTINGS ======
+function getSettings() {
+  var passMarkVal = parseInt(document.getElementById('pass-mark').value, 10);
+  if (isNaN(passMarkVal) || passMarkVal < 1) passMarkVal = 1;
+  if (passMarkVal > 100) passMarkVal = 100;
+
+  return {
+    courseTitle: document.getElementById('course-title').value || 'Untitled Course',
+    orgName: document.getElementById('org-name').value || '',
+    passMark: passMarkVal,
+    scormVersion: document.getElementById('scorm-version').value,
+    questionOrder: document.getElementById('question-order').value,
+    showExplanations: document.getElementById('show-explanations').checked,
+    displayMode: document.getElementById('display-mode').value,
+    enableRetakes: document.getElementById('enable-retakes').checked,
+    maxAttempts: parseInt(document.getElementById('max-attempts').value, 10),
+    retakeMsg: document.getElementById('retake-msg').value,
+    lockedMsg: document.getElementById('locked-msg').value,
+    enableCert: document.getElementById('enable-cert').checked,
+    certTitle: document.getElementById('cert-title').value || 'Certificate of Completion',
+    signatoryName: document.getElementById('signatory-name').value || '',
+    signatoryTitle: document.getElementById('signatory-title').value || ''
+  };
+}
+
+// ====== JS: THEME ENGINE ======
+var PRESETS = {
+  corporate: { primary: '#1a3c5e', bg: '#f0f4f8', text: '#222222', correct: '#2e7d32', incorrect: '#c62828' },
+  modern:    { primary: '#6200ea', bg: '#ffffff', text: '#212121', correct: '#03dac6', incorrect: '#b00020' },
+  dark:      { primary: '#1e1e1e', bg: '#121212', text: '#e0e0e0', correct: '#bb86fc', incorrect: '#cf6679' },
+  hc:        { primary: '#000000', bg: '#ffffff', text: '#000000', correct: '#ffdd00', incorrect: '#cc0000' }
+};
+
+var logoBase64 = null;
+
+function getTheme() {
+  return {
+    primary:   document.getElementById('color-primary').value,
+    bg:        document.getElementById('color-bg').value,
+    text:      document.getElementById('color-text').value,
+    correct:   document.getElementById('color-correct').value,
+    incorrect: document.getElementById('color-incorrect').value
+  };
+}
+
+function applyPreset(presetKey) {
+  var p = PRESETS[presetKey];
+  if (!p) return;
+  document.getElementById('color-primary').value   = p.primary;
+  document.getElementById('color-bg').value        = p.bg;
+  document.getElementById('color-text').value      = p.text;
+  document.getElementById('color-correct').value   = p.correct;
+  document.getElementById('color-incorrect').value = p.incorrect;
+  document.getElementById('hex-primary').textContent   = p.primary;
+  document.getElementById('hex-bg').textContent        = p.bg;
+  document.getElementById('hex-text').textContent      = p.text;
+  document.getElementById('hex-correct').textContent   = p.correct;
+  document.getElementById('hex-incorrect').textContent = p.incorrect;
+  updateLivePreview();
+}
+
+function updateLivePreview() {
+  var theme = getTheme();
+  var header = document.getElementById('preview-header');
+  var body = document.getElementById('preview-body');
+  var swatchCorrect = document.getElementById('swatch-correct');
+  var swatchIncorrect = document.getElementById('swatch-incorrect');
+  header.style.background = theme.primary;
+  body.style.background = theme.bg;
+  body.style.color = theme.text;
+  swatchCorrect.style.background = theme.correct;
+  swatchIncorrect.style.background = theme.incorrect;
+
+  var courseTitle = document.getElementById('course-title').value || 'Untitled Course';
+  document.getElementById('preview-title-text').textContent = courseTitle;
+
+  var previewHeader = document.getElementById('preview-header');
+  // Update logo in preview
+  var existingImg = previewHeader.querySelector('img');
+  if (existingImg) previewHeader.removeChild(existingImg);
+  var titleEl = document.getElementById('preview-title-text');
+  if (logoBase64) {
+    var img = document.createElement('img');
+    img.src = logoBase64;
+    img.style.maxWidth = '80px';
+    img.style.maxHeight = '32px';
+    img.style.objectFit = 'contain';
+    previewHeader.insertBefore(img, titleEl);
+  }
+}
+
+function initColorPickers() {
+  var pickers = [
+    { input: 'color-primary',   hex: 'hex-primary' },
+    { input: 'color-bg',        hex: 'hex-bg' },
+    { input: 'color-text',      hex: 'hex-text' },
+    { input: 'color-correct',   hex: 'hex-correct' },
+    { input: 'color-incorrect', hex: 'hex-incorrect' }
+  ];
+  pickers.forEach(function(p) {
+    var input = document.getElementById(p.input);
+    var hex   = document.getElementById(p.hex);
+    input.addEventListener('input', function() {
+      hex.textContent = input.value;
+      // Clear active preset since color changed
+      document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+      updateLivePreview();
+    });
+  });
+
+  document.querySelectorAll('.preset-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      applyPreset(btn.dataset.preset);
+    });
+  });
+}
+
+function initLogoUpload() {
+  var input = document.getElementById('logo-input');
+  var preview = document.getElementById('logo-preview');
+  var errEl = document.getElementById('logo-error');
+  var clearBtn = document.getElementById('btn-clear-logo');
+
+  input.addEventListener('change', function() {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    validateAndSetLogo(file, preview, errEl, clearBtn);
+  });
+
+  clearBtn.addEventListener('click', function() {
+    logoBase64 = null;
+    preview.src = '';
+    preview.classList.add('hidden');
+    clearBtn.style.display = 'none';
+    errEl.textContent = '';
+    errEl.classList.add('hidden');
+    input.value = '';
+    updateLivePreview();
+  });
+}
+
+function validateAndSetLogo(file, preview, errEl, clearBtn) {
+  errEl.textContent = '';
+  errEl.classList.add('hidden');
+
+  var allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
+  if (allowedTypes.indexOf(file.type) === -1) {
+    errEl.textContent = 'Only PNG, JPG, and SVG files are accepted';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (file.size > 500 * 1024) {
+    errEl.textContent = 'Logo file must be 500 KB or smaller';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    if (file.type === 'image/svg+xml') {
+      validateSVGDimensions(dataUrl, file, function(err) {
+        if (err) {
+          errEl.textContent = err;
+          errEl.classList.remove('hidden');
+        } else {
+          logoBase64 = dataUrl;
+          preview.src = dataUrl;
+          preview.classList.remove('hidden');
+          clearBtn.style.display = 'inline-flex';
+          updateLivePreview();
+        }
+      });
+    } else {
+      var img = new Image();
+      img.onload = function() {
+        if (img.naturalWidth > 400 || img.naturalHeight > 200) {
+          errEl.textContent = 'Logo must be 400\u00d7200px or smaller';
+          errEl.classList.remove('hidden');
+        } else {
+          logoBase64 = dataUrl;
+          preview.src = dataUrl;
+          preview.classList.remove('hidden');
+          clearBtn.style.display = 'inline-flex';
+          updateLivePreview();
+        }
+      };
+      img.src = dataUrl;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function validateSVGDimensions(dataUrl, file, callback) {
+  var svgReader = new FileReader();
+  svgReader.onload = function(e) {
+    var svgText = e.target.result;
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(svgText, 'image/svg+xml');
+    var svgEl = doc.querySelector('svg');
+    if (!svgEl) { callback(null); return; }
+
+    var w = svgEl.getAttribute('width');
+    var h = svgEl.getAttribute('height');
+    var viewBox = svgEl.getAttribute('viewBox');
+
+    // If no intrinsic dimensions and no viewBox, accept it
+    if (!w && !h && !viewBox) { callback(null); return; }
+
+    // Try to get dimensions via canvas rendering
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || 400;
+      canvas.height = img.naturalHeight || 200;
+      if (canvas.width > 400 || canvas.height > 200) {
+        callback('Logo must be 400\u00d7200px or smaller');
+      } else {
+        callback(null);
+      }
+    };
+    img.onerror = function() { callback(null); }; // Can't measure, accept it
+    img.src = dataUrl;
+  };
+  svgReader.readAsText(file);
+}
+
+// ====== JS: PREVIEW ======
+var parsedQuestions = []; // current ordered questions
+
+function truncate(str, n) {
+  if (!str) return '';
+  return str.length > n ? str.substring(0, n) + '…' : str;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderPreviewTable(questions) {
+  parsedQuestions = questions.slice();
+  var tbody = document.getElementById('preview-tbody');
+  var randomOrder = document.getElementById('question-order').value === 'random';
+
+  tbody.innerHTML = '';
+  questions.forEach(function(q, idx) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-idx', idx);
+    if (q.status === 'error') tr.classList.add('row-error');
+    else if (q.status === 'warning') tr.classList.add('row-warning');
+
+    // Drag handle / mobile arrows
+    var tdHandle = document.createElement('td');
+    tdHandle.className = 'drag-handle-cell';
+    var handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.innerHTML = '&#8942;&#8942;';
+    handle.setAttribute('draggable', 'true');
+    if (randomOrder) handle.style.opacity = '0.3';
+    tdHandle.appendChild(handle);
+
+    // Mobile arrows
+    var arrows = document.createElement('span');
+    arrows.className = 'mobile-arrows';
+    var upBtn = document.createElement('button');
+    upBtn.textContent = '▲';
+    upBtn.setAttribute('aria-label', 'Move up');
+    var downBtn = document.createElement('button');
+    downBtn.textContent = '▼';
+    downBtn.setAttribute('aria-label', 'Move down');
+    arrows.appendChild(upBtn);
+    arrows.appendChild(downBtn);
+    tdHandle.appendChild(arrows);
+
+    var tdNum = document.createElement('td');
+    tdNum.textContent = idx + 1;
+
+    var tdType = document.createElement('td');
+    var badge = document.createElement('span');
+    badge.className = 'type-badge badge-' + q.type;
+    badge.textContent = q.type.toUpperCase();
+    tdType.appendChild(badge);
+
+    var tdQ = document.createElement('td');
+    tdQ.textContent = truncate(q.question, 80);
+    tdQ.title = q.question;
+
+    var tdA = document.createElement('td');
+    tdA.textContent = truncate(q.optionA, 40);
+    tdA.title = q.optionA;
+
+    var tdB = document.createElement('td');
+    tdB.textContent = truncate(q.optionB, 40);
+    tdB.title = q.optionB;
+
+    var tdC = document.createElement('td');
+    tdC.textContent = truncate(q.optionC, 40);
+    tdC.title = q.optionC;
+
+    var tdD = document.createElement('td');
+    tdD.textContent = truncate(q.optionD, 40);
+    tdD.title = q.optionD;
+
+    var tdCorrect = document.createElement('td');
+    var correctBadge = document.createElement('span');
+    correctBadge.className = 'correct-badge';
+    correctBadge.textContent = q.correctAnswer;
+    tdCorrect.appendChild(correctBadge);
+
+    var tdExp = document.createElement('td');
+    tdExp.textContent = truncate(q.explanation, 60);
+    tdExp.title = q.explanation;
+
+    var tdStatus = document.createElement('td');
+    tdStatus.className = 'status-icon';
+    if (q.status === 'error') {
+      tdStatus.textContent = '✗';
+      tdStatus.style.color = '#c62828';
+      tdStatus.title = q.rowErrors.join('; ');
+    } else if (q.status === 'warning') {
+      tdStatus.textContent = '⚠';
+      tdStatus.style.color = '#e65100';
+      tdStatus.title = q.rowWarnings.join('; ');
+    } else {
+      tdStatus.textContent = '✓';
+      tdStatus.style.color = '#2e7d32';
+    }
+
+    tr.appendChild(tdHandle);
+    tr.appendChild(tdNum);
+    tr.appendChild(tdType);
+    tr.appendChild(tdQ);
+    tr.appendChild(tdA);
+    tr.appendChild(tdB);
+    tr.appendChild(tdC);
+    tr.appendChild(tdD);
+    tr.appendChild(tdCorrect);
+    tr.appendChild(tdExp);
+    tr.appendChild(tdStatus);
+
+    tbody.appendChild(tr);
+
+    // Mobile arrow handlers
+    (function(rowIdx) {
+      upBtn.addEventListener('click', function() { moveRow(rowIdx, -1); });
+      downBtn.addEventListener('click', function() { moveRow(rowIdx, 1); });
+    })(idx);
+  });
+
+  // Update summary
+  updateTableSummary(questions);
+
+  // Setup drag
+  initDragReorder();
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('preview-panel').style.display = 'block';
+}
+
+function updateTableSummary(questions) {
+  var valid = 0, warn = 0, errs = 0;
+  questions.forEach(function(q) {
+    if (q.status === 'error') errs++;
+    else if (q.status === 'warning') warn++;
+    else valid++;
+  });
+  var summary = document.getElementById('table-summary');
+  summary.innerHTML = '<span class="s-valid">' + valid + ' valid</span> &middot; ' +
+    '<span class="s-warn">' + warn + ' warning' + (warn !== 1 ? 's' : '') + '</span> &middot; ' +
+    '<span class="s-error">' + errs + ' error' + (errs !== 1 ? 's' : '') + '</span>';
+}
+
+function moveRow(fromIdx, direction) {
+  var toIdx = fromIdx + direction;
+  if (toIdx < 0 || toIdx >= parsedQuestions.length) return;
+  var tmp = parsedQuestions[fromIdx];
+  parsedQuestions[fromIdx] = parsedQuestions[toIdx];
+  parsedQuestions[toIdx] = tmp;
+  renderPreviewTable(parsedQuestions);
+}
+
+// ====== JS: DRAG REORDER ======
+var dragSrcIdx = null;
+
+function initDragReorder() {
+  var tbody = document.getElementById('preview-tbody');
+  var rows = tbody.querySelectorAll('tr');
+  var randomOrder = document.getElementById('question-order').value === 'random';
+
+  rows.forEach(function(row, idx) {
+    var handle = row.querySelector('.drag-handle');
+    if (!handle) return;
+
+    handle.addEventListener('dragstart', function(e) {
+      if (randomOrder) { e.preventDefault(); return; }
+      dragSrcIdx = idx;
+      row.style.opacity = '0.5';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    handle.addEventListener('dragend', function() {
+      row.style.opacity = '';
+      tbody.querySelectorAll('tr').forEach(function(r) {
+        r.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+    });
+
+    row.addEventListener('dragover', function(e) {
+      if (randomOrder || dragSrcIdx === null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      var rect = row.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      tbody.querySelectorAll('tr').forEach(function(r) { r.classList.remove('drag-over-top', 'drag-over-bottom'); });
+      if (e.clientY < midY) row.classList.add('drag-over-top');
+      else row.classList.add('drag-over-bottom');
+    });
+
+    row.addEventListener('dragleave', function() {
+      row.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (randomOrder || dragSrcIdx === null || dragSrcIdx === idx) return;
+      var rect = row.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      var dropIdx = e.clientY < midY ? idx : idx + 1;
+      var moved = parsedQuestions.splice(dragSrcIdx, 1)[0];
+      if (dragSrcIdx < dropIdx) dropIdx--;
+      parsedQuestions.splice(dropIdx, 0, moved);
+      dragSrcIdx = null;
+      renderPreviewTable(parsedQuestions);
+    });
+  });
+}
+
+// ====== JS: QUIZ TEMPLATE ======
+function safeJson(obj) {
+  return JSON.stringify(obj).replace(/<\/script>/gi, '<\\/script>');
+}
+
+function getQuizLogicJS() {
+  return [
+    'var scormAPI = null;',
+    'var scormVersion = null;',
+    'var userAnswers = {};',
+    'var submitted = false;',
+    'var currentQ = 0;',
+    '',
+    'function findSCORMAPI() {',
+    '  var win = window;',
+    '  for (var i = 0; i <= 10; i++) {',
+    '    if (win.API_1484_11) { scormVersion = "2004"; scormAPI = win.API_1484_11; return; }',
+    '    if (win.API) { scormVersion = "12"; scormAPI = win.API; return; }',
+    '    if (!win.parent || win.parent === win) break;',
+    '    win = win.parent;',
+    '  }',
+    '  console.info("SCORM API not found - running in local preview mode");',
+    '}',
+    '',
+    'function scormInit() {',
+    '  if (!scormAPI) return;',
+    '  if (scormVersion === "12") { scormAPI.LMSInitialize(""); }',
+    '  else { scormAPI.Initialize(""); }',
+    '}',
+    '',
+    'function scormGetLearnerName() {',
+    '  if (!scormAPI) return "Learner";',
+    '  var name = scormVersion === "12" ? scormAPI.LMSGetValue("cmi.core.student_name") : scormAPI.GetValue("cmi.learner_name");',
+    '  return name || "Learner";',
+    '}',
+    '',
+    'function scormCommitResult(scorePct, passed) {',
+    '  if (!scormAPI) return;',
+    '  if (scormVersion === "12") {',
+    '    scormAPI.LMSSetValue("cmi.core.score.raw", String(scorePct));',
+    '    scormAPI.LMSSetValue("cmi.core.score.min", "0");',
+    '    scormAPI.LMSSetValue("cmi.core.score.max", "100");',
+    '    scormAPI.LMSSetValue("cmi.core.lesson_status", passed ? "passed" : "failed");',
+    '    scormAPI.LMSCommit("");',
+    '    scormAPI.LMSFinish("");',
+    '  } else {',
+    '    scormAPI.SetValue("cmi.score.raw", String(scorePct));',
+    '    scormAPI.SetValue("cmi.score.min", "0");',
+    '    scormAPI.SetValue("cmi.score.max", "100");',
+    '    scormAPI.SetValue("cmi.score.scaled", (scorePct / 100).toFixed(2));',
+    '    scormAPI.SetValue("cmi.completion_status", "completed");',
+    '    scormAPI.SetValue("cmi.success_status", passed ? "passed" : "failed");',
+    '    scormAPI.Commit("");',
+    '    scormAPI.Terminate("");',
+    '  }',
+    '}',
+    '',
+    'function esc(str) {',
+    '  if (!str) return "";',
+    '  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");',
+    '}',
+    '',
+    'function checkAttempts() {',
+    '  if (!CONFIG.enableRetakes || CONFIG.maxAttempts === 0) return false;',
+    '  var key = "scorm_attempts_" + CONFIG.manifestId;',
+    '  var count = parseInt(localStorage.getItem(key) || "0", 10);',
+    '  if (count >= CONFIG.maxAttempts) {',
+    '    document.getElementById("quiz-app").innerHTML = \'<div class="result-screen"><p class="locked-msg">\' + esc(CONFIG.lockedMsg) + \'</p></div>\';',
+    '    if (scormAPI) {',
+    '      if (scormVersion === "12") { scormAPI.LMSSetValue("cmi.core.lesson_status", "failed"); scormAPI.LMSCommit(""); scormAPI.LMSFinish(""); }',
+    '      else { scormAPI.SetValue("cmi.completion_status","completed"); scormAPI.SetValue("cmi.success_status","failed"); scormAPI.Commit(""); scormAPI.Terminate(""); }',
+    '    }',
+    '    return true;',
+    '  }',
+    '  return false;',
+    '}',
+    '',
+    'function incrementAttempts() {',
+    '  if (!CONFIG.enableRetakes || CONFIG.maxAttempts === 0) return;',
+    '  var key = "scorm_attempts_" + CONFIG.manifestId;',
+    '  var count = parseInt(localStorage.getItem(key) || "0", 10);',
+    '  localStorage.setItem(key, String(count + 1));',
+    '}',
+    '',
+    'function getAttemptCount() {',
+    '  if (!CONFIG.enableRetakes || CONFIG.maxAttempts === 0) return 1;',
+    '  var key = "scorm_attempts_" + CONFIG.manifestId;',
+    '  return parseInt(localStorage.getItem(key) || "0", 10);',
+    '}',
+    '',
+    'function renderQuiz() {',
+    '  var app = document.getElementById("quiz-app");',
+    '  if (CONFIG.displayMode === "all") {',
+    '    renderAllMode(app);',
+    '  } else {',
+    '    renderOneMode(app);',
+    '  }',
+    '}',
+    '',
+    'function buildQuestionHTML(q, idx) {',
+    '  var html = \'<div class="question-card" id="qcard-\' + idx + \'">\';',
+    '  html += \'<div class="question-text">\' + esc(q.question) + \'</div>\';',
+    '  if (q.type === "ms") html += \'<p class="ms-hint">Select all that apply</p>\';',
+    '  html += \'<div class="options" id="opts-\' + idx + \'">\';',
+    '  var opts = [{k:"A",v:q.optionA},{k:"B",v:q.optionB}];',
+    '  if (q.type !== "tf") { opts.push({k:"C",v:q.optionC}); opts.push({k:"D",v:q.optionD}); }',
+    '  opts.forEach(function(o) {',
+    '    if (!o.v) return;',
+    '    var inputType = q.type === "ms" ? "checkbox" : "radio";',
+    '    var name = "q" + idx;',
+    '    html += \'<label class="option-label" id="opt-\' + idx + \'-\' + o.k + \'">\';',
+    '    html += \'<input type="\' + inputType + \'" name="\' + name + \'" value="\' + o.k + \'" data-qidx="\' + idx + \'" data-key="\' + o.k + \'"> \';',
+    '    html += \'<span class="opt-key">\' + o.k + \'.</span> \' + esc(o.v);',
+    '    html += \'</label>\';',
+    '  });',
+    '  html += \'</div>\';',
+    '  html += \'<button type="button" class="quiz-btn confirm-btn" id="confirm-\' + idx + \'" data-qidx="\' + idx + \'" style="display:none;margin-top:10px">Confirm Selection</button>\';',
+    '  html += \'<div class="feedback" id="fb-\' + idx + \'" style="display:none"></div>\';',
+    '  html += \'</div>\';',
+    '  return html;',
+    '}',
+    '',
+    'function renderAllMode(app) {',
+    '  var html = \'<form id="quiz-form">\';',
+    '  QUESTIONS.forEach(function(q, idx) { html += buildQuestionHTML(q, idx); });',
+    '  html += \'<div class="submit-bar"><button type="button" id="btn-submit" class="quiz-btn" disabled>Submit Quiz</button></div>\';',
+    '  html += \'</form>\';',
+    '  app.innerHTML = html;',
+    '  app.querySelectorAll("input[type=radio],input[type=checkbox]").forEach(function(inp) {',
+    '    inp.addEventListener("change", function() { handleAnswer(this); });',
+    '  });',
+    '  app.querySelectorAll(".confirm-btn").forEach(function(btn) {',
+    '    btn.addEventListener("click", function() { confirmAnswer(parseInt(this.dataset.qidx, 10)); });',
+    '  });',
+    '}',
+    '',
+    'function renderOneMode(app) {',
+    '  currentQ = 0;',
+    '  var progressHtml = \'<div class="progress-bar" id="progress-bar">\';',
+    '  QUESTIONS.forEach(function(q, i) {',
+    '    progressHtml += \'<button class="prog-circle" id="prog-\' + i + \'" data-idx="\' + i + \'">\' + (i+1) + \'</button>\';',
+    '  });',
+    '  progressHtml += \'</div>\';',
+    '  app.innerHTML = progressHtml +',
+    '    \'<div id="one-q-container"></div>\' +',
+    '    \'<div class="nav-bar">\' +',
+    '      \'<button type="button" class="quiz-btn" id="btn-prev" disabled>&#8592; Back</button>\' +',
+    '      \'<span id="q-counter">Question 1 of \' + QUESTIONS.length + \'</span>\' +',
+    '      \'<button type="button" class="quiz-btn" id="btn-next">Next &#8594;</button>\' +',
+    '      \'<button type="button" class="quiz-btn" id="btn-submit-one" style="display:none" disabled>Submit Quiz</button>\' +',
+    '    \'</div>\';',
+    '  app.querySelectorAll(".prog-circle").forEach(function(btn) {',
+    '    btn.addEventListener("click", function() { goToQuestion(parseInt(this.dataset.idx,10)); });',
+    '  });',
+    '  document.getElementById("btn-prev").addEventListener("click", function() { goToQuestion(currentQ - 1); });',
+    '  document.getElementById("btn-next").addEventListener("click", function() { goToQuestion(currentQ + 1); });',
+    '  document.getElementById("btn-submit-one").addEventListener("click", submitQuiz);',
+    '  showOneQuestion(0);',
+    '}',
+    '',
+    'function showOneQuestion(idx) {',
+    '  currentQ = idx;',
+    '  var container = document.getElementById("one-q-container");',
+    '  var q = QUESTIONS[idx];',
+    '  container.innerHTML = buildQuestionHTML(q, idx);',
+    '  container.querySelectorAll("input").forEach(function(inp) {',
+    '    inp.addEventListener("change", function() { handleAnswer(this); });',
+    '  });',
+    '  container.querySelectorAll(".confirm-btn").forEach(function(btn) {',
+    '    btn.addEventListener("click", function() { confirmAnswer(parseInt(this.dataset.qidx, 10)); });',
+    '  });',
+    '  // Restore any existing answer',
+    '  if (userAnswers[idx] !== undefined) {',
+    '    var ans = userAnswers[idx];',
+    '    if (Array.isArray(ans)) {',
+    '      ans.forEach(function(k) {',
+    '        var inp = container.querySelector("input[value=\\"" + k + "\\"]");',
+    '        if (inp) { inp.checked = true; inp.disabled = true; }',
+    '      });',
+    '    } else {',
+    '      var inp = container.querySelector("input[value=\\"" + ans + "\\"]");',
+    '      if (inp) { inp.checked = true; inp.disabled = true; }',
+    '    }',
+    '    // Show feedback',
+    '    showFeedback(idx, q, ans);',
+    '  }',
+    '  updateProgressBar();',
+    '  updateNavButtons();',
+    '}',
+    '',
+    'function updateProgressBar() {',
+    '  var circles = document.querySelectorAll(".prog-circle");',
+    '  circles.forEach(function(c, i) {',
+    '    c.className = "prog-circle";',
+    '    if (userAnswers[i] !== undefined) c.classList.add("answered");',
+    '    if (i === currentQ) c.classList.add("current");',
+    '  });',
+    '}',
+    '',
+    'function updateNavButtons() {',
+    '  var prevBtn = document.getElementById("btn-prev");',
+    '  var nextBtn = document.getElementById("btn-next");',
+    '  var submitOne = document.getElementById("btn-submit-one");',
+    '  if (!prevBtn) return;',
+    '  prevBtn.disabled = currentQ === 0;',
+    '  var isLast = currentQ === QUESTIONS.length - 1;',
+    '  nextBtn.style.display = isLast ? "none" : "inline-flex";',
+    '  submitOne.style.display = isLast ? "inline-flex" : "none";',
+    '  var allAnswered = QUESTIONS.every(function(q, i) { return userAnswers[i] !== undefined; });',
+    '  submitOne.disabled = !allAnswered;',
+    '  document.getElementById("q-counter").textContent = "Question " + (currentQ+1) + " of " + QUESTIONS.length;',
+    '}',
+    '',
+    'function goToQuestion(idx) {',
+    '  if (idx < 0 || idx >= QUESTIONS.length) return;',
+    '  showOneQuestion(idx);',
+    '}',
+    '',
+    'function handleAnswer(input) {',
+    '  var idx = parseInt(input.dataset.qidx, 10);',
+    '  // For all types: show Confirm button when an answer is selected; do not lock yet',
+    '  var checked = document.querySelectorAll("input[name=q" + idx + "]:checked");',
+    '  var confirmBtn = document.getElementById("confirm-" + idx);',
+    '  if (confirmBtn) confirmBtn.style.display = checked.length > 0 ? "inline-flex" : "none";',
+    '}',
+    '',
+    'function confirmAnswer(idx) {',
+    '  var q = QUESTIONS[idx];',
+    '  var checked = document.querySelectorAll("input[name=q" + idx + "]:checked");',
+    '  var keys = [];',
+    '  checked.forEach(function(c) { keys.push(c.value); });',
+    '  if (keys.length === 0) return;',
+    '  userAnswers[idx] = q.type === "ms" ? keys : keys[0];',
+    '  document.querySelectorAll("input[name=q" + idx + "]").forEach(function(c) { c.disabled = true; });',
+    '  var confirmBtn = document.getElementById("confirm-" + idx);',
+    '  if (confirmBtn) confirmBtn.style.display = "none";',
+    '  showFeedback(idx, q, userAnswers[idx]);',
+    '  var allAnswered = QUESTIONS.every(function(q, i) { return userAnswers[i] !== undefined; });',
+    '  var submitBtn = document.getElementById("btn-submit");',
+    '  if (submitBtn) submitBtn.disabled = !allAnswered;',
+    '  updateProgressBar && updateProgressBar();',
+    '  updateNavButtons && updateNavButtons();',
+    '}',
+    '',
+    'function isCorrect(q, ans) {',
+    '  if (q.type === "ms") {',
+    '    var correct = q.correctAnswer.split("").sort().join("");',
+    '    var given = (Array.isArray(ans) ? ans : [ans]).slice().sort().join("");',
+    '    return correct === given;',
+    '  }',
+    '  return q.correctAnswer === ans;',
+    '}',
+    '',
+    'function showFeedback(idx, q, ans) {',
+    '  var fb = document.getElementById("fb-" + idx);',
+    '  if (!fb) return;',
+    '  var correct = isCorrect(q, ans);',
+    '  fb.style.display = "block";',
+    '  // Highlight options',
+    '  if (q.type === "ms") {',
+    '    var correctLetters = q.correctAnswer.split("");',
+    '    var givenLetters = Array.isArray(ans) ? ans : [ans];',
+    '    ["A","B","C","D"].forEach(function(k) {',
+    '      var lbl = document.getElementById("opt-" + idx + "-" + k);',
+    '      if (!lbl) return;',
+    '      if (correctLetters.indexOf(k) !== -1) lbl.classList.add("correct");',
+    '      else if (givenLetters.indexOf(k) !== -1) lbl.classList.add("incorrect");',
+    '    });',
+    '  } else {',
+    '    var selectedLbl = document.getElementById("opt-" + idx + "-" + ans);',
+    '    if (selectedLbl) selectedLbl.classList.add(correct ? "correct" : "incorrect");',
+    '    if (!correct) {',
+    '      var correctLbl = document.getElementById("opt-" + idx + "-" + q.correctAnswer);',
+    '      if (correctLbl) correctLbl.classList.add("correct");',
+    '    }',
+    '  }',
+    '  var resultText = correct ? "Correct!" : "Incorrect.";',
+    '  fb.className = "feedback " + (correct ? "fb-correct" : "fb-incorrect");',
+    '  if (CONFIG.showExplanations && q.explanation) {',
+    '    fb.innerHTML = "<strong>" + resultText + "</strong> " + esc(q.explanation);',
+    '  } else {',
+    '    fb.textContent = resultText;',
+    '  }',
+    '}',
+    '',
+    'function submitQuiz() {',
+    '  if (submitted) return;',
+    '  submitted = true;',
+    '  var correct = 0;',
+    '  QUESTIONS.forEach(function(q, i) {',
+    '    if (isCorrect(q, userAnswers[i])) correct++;',
+    '  });',
+    '  var total = QUESTIONS.length;',
+    '  var pct = Math.round((correct / total) * 100);',
+    '  var passed = pct >= CONFIG.passMark;',
+    '  incrementAttempts();',
+    '  scormCommitResult(pct, passed);',
+    '  showResultScreen(pct, correct, total, passed);',
+    '}',
+    '',
+    'function showResultScreen(pct, correct, total, passed) {',
+    '  var app = document.getElementById("quiz-app");',
+    '  var learnerName = scormGetLearnerName();',
+    '  var attemptCount = getAttemptCount();',
+    '  var attemptsRemain = CONFIG.enableRetakes && CONFIG.maxAttempts > 0 && attemptCount < CONFIG.maxAttempts;',
+    '  var html = \'<div class="result-screen">\';',
+    '  html += \'<div class="score-pct">\' + pct + \'%</div>\';',
+    '  html += \'<div class="pass-badge \' + (passed ? "badge-pass" : "badge-fail") + \'">\' + (passed ? "PASS" : "FAIL") + \'</div>\';',
+    '  html += \'<p class="score-detail">\' + correct + \' out of \' + total + \' correct &mdash; Pass mark: \' + CONFIG.passMark + \'%</p>\';',
+    '  if (CONFIG.enableRetakes && !passed) {',
+    '    if (attemptsRemain) {',
+    '      var remaining = CONFIG.maxAttempts - attemptCount;',
+    '      html += \'<p class="retake-msg">\' + esc(CONFIG.retakeMsg) + \'</p>\';',
+    '      if (CONFIG.maxAttempts > 0) {',
+    '        html += \'<p class="attempt-count">Attempt \' + attemptCount + \' of \' + CONFIG.maxAttempts + \'</p>\';',
+    '      }',
+    '      html += \'<button class="quiz-btn" onclick="location.reload()">Retake Quiz</button>\';',
+    '    } else {',
+    '      html += \'<p class="locked-msg">\' + esc(CONFIG.lockedMsg) + \'</p>\';',
+    '    }',
+    '  }',
+    '  html += \'</div>\';',
+    '  // Certificate',
+    '  if (passed && CONFIG.enableCert) {',
+    '    var now = new Date();',
+    '    var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];',
+    '    var dateStr = months[now.getMonth()] + " " + now.getDate() + ", " + now.getFullYear();',
+    '    html += \'<div class="certificate" id="certificate">\';',
+    '    if (CONFIG.logoBase64) {',
+    '      html += \'<img src="\' + esc(CONFIG.logoBase64) + \'" class="cert-logo" alt="Logo">\';',
+    '    }',
+    '    html += \'<h1 class="cert-title">\' + esc(CONFIG.certTitle) + \'</h1>\';',
+    '    html += \'<p class="cert-body">This certifies that</p>\';',
+    '    html += \'<p class="cert-name">\' + esc(learnerName) + \'</p>\';',
+    '    html += \'<p class="cert-body">has successfully completed</p>\';',
+    '    html += \'<p class="cert-course">\' + esc(CONFIG.courseTitle) + \'</p>\';',
+    '    html += \'<p class="cert-date">\' + dateStr + \'</p>\';',
+    '    if (CONFIG.signatoryName || CONFIG.signatoryTitle) {',
+    '      html += \'<div class="cert-sig"><hr class="sig-line"><p class="sig-name">\' + esc(CONFIG.signatoryName) + \'</p>\';',
+    '      html += \'<p class="sig-title">\' + esc(CONFIG.signatoryTitle) + \'</p></div>\';',
+    '    }',
+    '    html += \'</div>\';',
+    '    html += \'<button class="quiz-btn print-btn" onclick="window.print()">Print Certificate</button>\';',
+    '  }',
+    '  app.innerHTML = html;',
+    '}',
+    '',
+    'function getQuizCSS(theme) {',
+    '  return "";',  // will be replaced by actual CSS
+    '}',
+    '',
+    '// Initialize',
+    '(function() {',
+    '  findSCORMAPI();',
+    '  scormInit();',
+    '  if (!checkAttempts()) {',
+    '    renderQuiz();',
+    '    if (CONFIG.displayMode === "all") {',
+    '      document.getElementById("btn-submit").addEventListener("click", submitQuiz);',
+    '    }',
+    '  }',
+    '})();'
+  ].join('\n');
+}
+
+function generateQuizCSS(theme) {
+  return [
+    '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }',
+    'body { font-family: system-ui, -apple-system, sans-serif; font-size: 16px; background: ' + theme.bg + '; color: ' + theme.text + '; }',
+    'header.quiz-header { background: ' + theme.primary + '; color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }',
+    'header.quiz-header img { max-width: 200px; max-height: 80px; object-fit: contain; }',
+    'header.quiz-header h1 { font-size: 1.3rem; }',
+    '.quiz-container { max-width: 800px; margin: 0 auto; padding: 24px 16px; }',
+    '.question-card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }',
+    '.question-text { font-size: 1rem; font-weight: 600; margin-bottom: 14px; line-height: 1.5; }',
+    '.ms-hint { font-size: .85rem; color: #666; margin-bottom: 10px; font-style: italic; }',
+    '.option-label { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 6px; border: 2px solid #e0e0e0; transition: background .15s; }',
+    '.option-label:hover { background: #f5f5f5; }',
+    '.option-label input { margin-top: 2px; flex-shrink: 0; }',
+    '.option-label.correct { background: ' + theme.correct + '22; border-color: ' + theme.correct + '; }',
+    '.option-label.incorrect { background: ' + theme.incorrect + '22; border-color: ' + theme.incorrect + '; }',
+    '.opt-key { font-weight: 700; color: #555; min-width: 18px; }',
+    '.feedback { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: .9rem; }',
+    '.fb-correct { background: ' + theme.correct + '22; color: ' + theme.correct + '; border-left: 3px solid ' + theme.correct + '; }',
+    '.fb-incorrect { background: ' + theme.incorrect + '22; color: ' + theme.incorrect + '; border-left: 3px solid ' + theme.incorrect + '; }',
+    '.submit-bar { position: sticky; bottom: 0; background: ' + theme.bg + '; padding: 16px 0; text-align: center; border-top: 1px solid #ddd; }',
+    '.quiz-btn { background: ' + theme.primary + '; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; font-size: .95rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }',
+    '.quiz-btn:disabled { opacity: .5; cursor: not-allowed; }',
+    '.quiz-btn:hover:not(:disabled) { filter: brightness(.9); }',
+    '.print-btn { background: #555; margin-left: 12px; }',
+    '.confirm-btn { margin-top: 10px; }',
+    '.nav-bar { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; gap: 12px; flex-wrap: wrap; }',
+    '#q-counter { font-size: .9rem; color: #666; }',
+    '.progress-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }',
+    '.prog-circle { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #ccc; background: transparent; cursor: pointer; font-size: .75rem; font-weight: 700; transition: all .15s; display: flex; align-items: center; justify-content: center; }',
+    '.prog-circle.answered { background: ' + theme.primary + '; color: #fff; border-color: ' + theme.primary + '; }',
+    '.prog-circle.current { border-color: ' + theme.correct + '; box-shadow: 0 0 0 2px ' + theme.correct + '55; }',
+    '.result-screen { text-align: center; background: #fff; border-radius: 8px; padding: 40px 24px; margin-bottom: 24px; }',
+    '.score-pct { font-size: 4rem; font-weight: 800; color: ' + theme.primary + '; }',
+    '.pass-badge { display: inline-block; padding: 6px 24px; border-radius: 20px; font-size: 1.1rem; font-weight: 700; color: #fff; margin: 12px 0; }',
+    '.badge-pass { background: ' + theme.correct + '; }',
+    '.badge-fail { background: ' + theme.incorrect + '; }',
+    '.score-detail { color: #555; margin: 8px 0 20px; }',
+    '.retake-msg, .attempt-count, .locked-msg { margin: 8px 0; color: #555; }',
+    '.locked-msg { color: ' + theme.incorrect + '; font-weight: 600; }',
+    '.certificate { max-width: 680px; margin: 24px auto; border: 2px solid #999; padding: 48px 40px; text-align: center; }',
+    '.cert-logo { max-width: 150px; max-height: 60px; object-fit: contain; margin-bottom: 20px; }',
+    '.cert-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 24px; color: ' + theme.primary + '; }',
+    '.cert-body { font-size: 1rem; color: #555; margin: 4px 0; }',
+    '.cert-name { font-size: 1.5rem; font-weight: 700; margin: 12px 0; color: ' + theme.text + '; }',
+    '.cert-course { font-size: 1.2rem; font-weight: 700; margin: 8px 0 20px; color: ' + theme.text + '; }',
+    '.cert-date { font-size: 1rem; color: #555; margin: 16px 0; }',
+    '.cert-sig { margin-top: 32px; }',
+    '.sig-line { border: none; border-top: 1px solid #999; width: 200px; margin: 0 auto 8px; }',
+    '.sig-name { font-weight: 600; }',
+    '.sig-title { color: #666; font-size: .9rem; }',
+    '@media print {',
+    '  body > *:not(.certificate) { display: none !important; }',
+    '  .certificate { display: block !important; border: 1px solid #999; margin: 0; }',
+    '  @page { size: landscape; }',
+    '}'
+  ].join('\n');
+}
+
+function generateQuizHTML(questions, config, theme) {
+  var questionsData = safeJson(questions);
+  var configData = safeJson(config);
+  var quizCSS = generateQuizCSS(theme);
+  var quizJS = getQuizLogicJS();
+
+  var headerContent = '';
+  if (config.logoBase64) {
+    headerContent = '<img src="' + escapeHtml(config.logoBase64) + '" alt="Logo"><h1>' + escapeHtml(config.courseTitle) + '</h1>';
+  } else {
+    headerContent = '<h1>' + escapeHtml(config.courseTitle) + '</h1>';
+  }
+
+  var parts = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
+    '<title>' + escapeHtml(config.courseTitle) + '</title>',
+    '<style>' + quizCSS + '</style>',
+    '</head>',
+    '<body>',
+    '<header class="quiz-header">' + headerContent + '</header>',
+    '<div class="quiz-container">',
+    '<div id="quiz-app"></div>',
+    '</div>',
+    '<script>',
+    'var QUESTIONS = ' + questionsData + ';',
+    'var CONFIG = ' + configData + ';',
+    quizJS,
+    '<\/script>',
+    '</body>',
+    '</html>'
+  ];
+  return parts.join('\n');
+}
+
+// ====== JS: SCORM GENERATOR ======
+function generateManifest12(slug, courseTitle, timestamp) {
+  var identifier = slug + '-' + timestamp;
+  // Ensure valid XML ID (must start with letter or _)
+  if (!/^[a-zA-Z_]/.test(identifier)) identifier = 'course-' + identifier;
+  var title = escapeHtml(courseTitle.substring(0, 200));
+  return [
+    '<?xml version="1.0" ?>',
+    '<manifest identifier="' + identifier + '" version="1"',
+    '       xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2"',
+    '       xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2"',
+    '       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+    '       xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd',
+    '                           http://www.imsglobal.org/xsd/imsmd_rootv1p2p1 imsmd_rootv1p2p1.xsd',
+    '                           http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">',
+    '  <metadata>',
+    '    <schema>ADL SCORM</schema>',
+    '    <schemaversion>1.2</schemaversion>',
+    '  </metadata>',
+    '  <organizations default="B0">',
+    '    <organization identifier="B0">',
+    '      <title>' + title + '</title>',
+    '      <item identifier="i1" identifierref="r1" isvisible="true">',
+    '        <title>' + title + '</title>',
+    '      </item>',
+    '    </organization>',
+    '  </organizations>',
+    '  <resources>',
+    '    <resource identifier="r1" type="webcontent" adlcp:scormtype="sco" href="index.html">',
+    '      <file href="index.html" />',
+    '    </resource>',
+    '  </resources>',
+    '</manifest>'
+  ].join('\n');
+}
+
+function generateManifest2004(slug, courseTitle, timestamp) {
+  var identifier = slug + '-' + timestamp;
+  if (!/^[a-zA-Z_]/.test(identifier)) identifier = 'course-' + identifier;
+  var title = escapeHtml(courseTitle.substring(0, 200));
+  return [
+    '<?xml version="1.0" standalone="no" ?>',
+    '<manifest identifier="' + identifier + '" version="1"',
+    '                  xmlns="http://www.imsglobal.org/xsd/imscp_v1p1"',
+    '                  xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_v1p3"',
+    '                  xmlns:adlseq="http://www.adlnet.org/xsd/adlseq_v1p3"',
+    '                  xmlns:adlnav="http://www.adlnet.org/xsd/adlnav_v1p3"',
+    '                  xmlns:imsss="http://www.imsglobal.org/xsd/imsss"',
+    '                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+    '                  xmlns:lom="http://ltsc.ieee.org/xsd/LOM"',
+    '                  xsi:schemaLocation="http://www.imsglobal.org/xsd/imscp_v1p1 imscp_v1p1.xsd',
+    '                                       http://www.adlnet.org/xsd/adlcp_v1p3 adlcp_v1p3.xsd',
+    '                                       http://www.adlnet.org/xsd/adlseq_v1p3 adlseq_v1p3.xsd',
+    '                                       http://www.adlnet.org/xsd/adlnav_v1p3 adlnav_v1p3.xsd',
+    '                                       http://www.imsglobal.org/xsd/imsss imsss_v1p0.xsd',
+    '                                       http://ltsc.ieee.org/xsd/LOM lom.xsd">',
+    '  <metadata>',
+    '    <schema>ADL SCORM</schema>',
+    '    <schemaversion>2004 4th Edition</schemaversion>',
+    '    <lom:lom>',
+    '      <lom:general>',
+    '        <lom:description>',
+    '          <lom:string language="en-US">' + title + '</lom:string>',
+    '        </lom:description>',
+    '      </lom:general>',
+    '    </lom:lom>',
+    '  </metadata>',
+    '  <organizations default="B0">',
+    '    <organization identifier="B0" adlseq:objectivesGlobalToSystem="false">',
+    '      <title>' + title + '</title>',
+    '      <item identifier="i1" identifierref="r1" isvisible="true">',
+    '        <title>' + title + '</title>',
+    '      </item>',
+    '    </organization>',
+    '  </organizations>',
+    '  <resources>',
+    '    <resource identifier="r1" type="webcontent" adlcp:scormType="sco" href="index.html">',
+    '      <file href="index.html" />',
+    '    </resource>',
+    '  </resources>',
+    '</manifest>'
+  ].join('\n');
+}
+
+async function generateSCORMPackage() {
+  var settings = getSettings();
+  var theme = getTheme();
+  var questions = parsedQuestions.slice();
+
+  if (settings.questionOrder === 'random') {
+    questions = questions.slice().sort(function() { return Math.random() - 0.5; });
+  }
+
+  var slug = slugify(settings.courseTitle);
+  var timestamp = Math.floor(Date.now() / 1000);
+
+  // Build config for quiz
+  var config = {
+    courseTitle: settings.courseTitle,
+    orgName: settings.orgName,
+    passMark: settings.passMark,
+    showExplanations: settings.showExplanations,
+    displayMode: settings.displayMode,
+    enableRetakes: settings.enableRetakes,
+    maxAttempts: settings.maxAttempts,
+    retakeMsg: settings.retakeMsg,
+    lockedMsg: settings.lockedMsg,
+    enableCert: settings.enableCert,
+    certTitle: settings.certTitle,
+    signatoryName: settings.signatoryName,
+    signatoryTitle: settings.signatoryTitle,
+    logoBase64: logoBase64 || null,
+    manifestId: slug + '-' + timestamp
+  };
+
+  var manifest = settings.scormVersion === '2004'
+    ? generateManifest2004(slug, settings.courseTitle, timestamp)
+    : generateManifest12(slug, settings.courseTitle, timestamp);
+
+  var quizHtml = generateQuizHTML(questions, config, theme);
+
+  var zip = new JSZip();
+  zip.file('imsmanifest.xml', manifest);
+  zip.file('index.html', quizHtml);
+
+  var blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+
+  // Check size
+  if (blob.size > 4 * 1024 * 1024) {
+    showToast('Package is over 4MB — some LMS platforms including Paycom may have upload limits. Consider using a smaller logo.', 'warning');
+  }
+
+  // Download
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = slug + '.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showToast('✓ Package downloaded — upload the .zip to your LMS', 'success');
+}
+
+// ====== JS: UI CONTROLLER ======
+var hasBlockingErrors = false;
+var csvLoaded = false;
+var jszipLoaded = false;
+
+function updateGenerateButton() {
+  var btn = document.getElementById('btn-generate');
+  btn.disabled = !csvLoaded || hasBlockingErrors || !jszipLoaded;
+}
+
+function processCSV(text) {
+  var result = csvToObjects(text);
+
+  if (result.error) {
+    document.getElementById('csv-status').className = 'msg msg-error';
+    document.getElementById('csv-status').textContent = '✗ ' + result.error;
+    document.getElementById('csv-status').classList.remove('hidden');
+    document.getElementById('csv-warnings').classList.add('hidden');
+    document.getElementById('csv-errors').classList.add('hidden');
+    csvLoaded = false;
+    hasBlockingErrors = true;
+    updateGenerateButton();
+    // Show empty state
+    document.getElementById('empty-state').style.display = 'flex';
+    document.getElementById('preview-panel').style.display = 'none';
+    return;
+  }
+
+  var validation = validateQuestions(result.questions);
+  hasBlockingErrors = validation.errors.length > 0;
+  csvLoaded = result.questions.length > 0;
+
+  // Status
+  var statusEl = document.getElementById('csv-status');
+  statusEl.classList.remove('hidden');
+  if (hasBlockingErrors) {
+    statusEl.className = 'msg msg-error';
+    statusEl.textContent = '✗ ' + result.questions.length + ' questions loaded — fix errors to generate';
+  } else {
+    statusEl.className = 'msg msg-success';
+    statusEl.textContent = '✓ ' + result.questions.length + ' questions loaded';
+  }
+
+  // Errors
+  var errEl = document.getElementById('csv-errors');
+  if (validation.errors.length > 0) {
+    errEl.classList.remove('hidden');
+    errEl.innerHTML = validation.errors.map(function(e) { return escapeHtml(e.msg); }).join('<br>');
+  } else {
+    errEl.classList.add('hidden');
+  }
+
+  // Warnings
+  var warnEl = document.getElementById('csv-warnings');
+  if (validation.warnings.length > 0) {
+    warnEl.classList.remove('hidden');
+    warnEl.innerHTML = validation.warnings.map(function(w) { return '⚠ ' + escapeHtml(w.msg); }).join('<br>');
+  } else {
+    warnEl.classList.add('hidden');
+  }
+
+  renderPreviewTable(validation.validated);
+  updateGenerateButton();
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv') {
+    var statusEl = document.getElementById('csv-status');
+    statusEl.className = 'msg msg-error';
+    statusEl.textContent = '✗ Invalid file type — please upload a .csv file';
+    statusEl.classList.remove('hidden');
+    csvLoaded = false;
+    hasBlockingErrors = true;
+    updateGenerateButton();
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) { processCSV(e.target.result); };
+  reader.readAsText(file);
+}
+
+function downloadTemplate() {
+  var templateContent = '\uFEFF' +
+    'Question,Type,OptionA,OptionB,OptionC,OptionD,CorrectAnswer,Explanation\n' +
+    '"What is phishing?",mc,"A scam email impersonating a trusted source","A type of network firewall","An encrypted VPN tunnel","A software patch process",A,"Phishing tricks users into revealing credentials by impersonating trusted entities."\n' +
+    '"Firewalls block all incoming traffic by default.",tf,True,False,,,A,"Firewalls filter traffic based on configured rules — they do not block everything by default."\n' +
+    '"Which of the following are social engineering attacks? (Select all that apply)",ms,Phishing,"SQL injection",Pretexting,Tailgating,ACD,"Phishing, pretexting, and tailgating are social engineering. SQL injection is a technical attack."\n' +
+    '"What does MFA stand for?",mc,"Multi-Factor Authentication","Managed Firewall Access","Multi-File Archive","Mandatory Firmware Alert",A,"MFA requires two or more verification steps — something you know plus something you have or are."';
+
+  var blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'scorm-builder-template.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  var hint = document.getElementById('template-hint');
+  hint.classList.add('visible');
+}
+
+function initAccordions() {
+  document.querySelectorAll('.accordion-header').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = document.getElementById(btn.dataset.target);
+      var isOpen = target.classList.contains('open');
+      if (isOpen) {
+        target.classList.remove('open');
+        btn.classList.remove('open');
+      } else {
+        target.classList.add('open');
+        btn.classList.add('open');
+      }
+    });
+    // Keyboard: Enter/Space already handled by button
+  });
+}
+
+function initDropZone() {
+  var zone = document.getElementById('drop-zone');
+  var fileInput = document.getElementById('csv-file-input');
+  var browseBtn = document.getElementById('btn-browse');
+
+  browseBtn.addEventListener('click', function() { fileInput.click(); });
+  zone.addEventListener('click', function(e) {
+    if (e.target === browseBtn || e.target === zone || e.target.closest('#drop-zone') && e.target.tagName !== 'BUTTON') {
+      fileInput.click();
+    }
+  });
+
+  fileInput.addEventListener('change', function() {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  zone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', function() {
+    zone.classList.remove('drag-over');
+  });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    var file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+}
+
+function initToggleSubSections() {
+  document.getElementById('enable-retakes').addEventListener('change', function() {
+    var sub = document.getElementById('retake-options');
+    if (this.checked) sub.classList.remove('hidden');
+    else sub.classList.add('hidden');
+  });
+  document.getElementById('enable-cert').addEventListener('change', function() {
+    var sub = document.getElementById('cert-options');
+    if (this.checked) sub.classList.remove('hidden');
+    else sub.classList.add('hidden');
+  });
+  document.getElementById('question-order').addEventListener('change', function() {
+    var note = document.getElementById('randomize-note');
+    if (this.value === 'random') note.classList.add('visible');
+    else note.classList.remove('visible');
+    // Re-render to update drag handle state
+    if (parsedQuestions.length > 0) renderPreviewTable(parsedQuestions);
+  });
+  document.getElementById('course-title').addEventListener('input', updateLivePreview);
+}
+
+function initPassMarkValidation() {
+  var input = document.getElementById('pass-mark');
+  input.addEventListener('change', function() {
+    var v = parseInt(this.value, 10);
+    if (isNaN(v) || v < 1) this.value = 1;
+    else if (v > 100) this.value = 100;
+    else if (v !== Math.floor(v)) this.value = Math.floor(v);
+  });
+}
+
+// Main init
+(function init() {
+  // Check JSZip
+  if (typeof JSZip === 'undefined') {
+    document.getElementById('jszip-banner').classList.remove('hidden');
+    jszipLoaded = false;
+  } else {
+    jszipLoaded = true;
+  }
+
+  initAccordions();
+  initDropZone();
+  initColorPickers();
+  initLogoUpload();
+  initToggleSubSections();
+  initPassMarkValidation();
+  updateLivePreview();
+  updateGenerateButton();
+
+  document.getElementById('btn-template-download').addEventListener('click', downloadTemplate);
+  document.getElementById('btn-generate').addEventListener('click', function() {
+    generateSCORMPackage().catch(function(err) {
+      showToast('Error generating package: ' + err.message, 'error');
+    });
+  });
+})();
+</script>
+</body>
+</html>

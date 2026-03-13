@@ -1,0 +1,9 @@
+SPEC.md
+AGENTS.md
+validation/
+*.zip
+.canopy/
+.claude/
+.mulch/
+.overstory/
+.seeds/
